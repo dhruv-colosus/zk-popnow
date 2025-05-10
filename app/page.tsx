@@ -1,103 +1,49 @@
-import Image from "next/image";
+
+import { ArrowUpRight } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
 
 export default function Home() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="relative min-h-screen w-full flex flex-col items-center justify-between bg-black overflow-hidden">
+      <div className="absolute inset-0 z-0 select-none pointer-events-none">
+        <Image src="/image/bg.png" alt="background" fill className="object-cover w-full " />
+      </div>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      <main className="flex flex-col items-center justify-center flex-1 w-full z-10 -mt-16 px-4 md:px-0">
+        <div className="mb-4">
+          <div className="bg-[#3b2e7e61] text-[10px] text-white px-3 py-0.5 rounded-full  shadow-inner shadow-white/10 border border-[#727272]/30 tracking-tight flex items-center gap-1">
+            <Image src="/image/star.png" alt="star" width={12} height={12} />
+            <span className='text-[#79a4dc]'>supports ZK compression</span>
+          </div>
+        </div>
+
+        <p className="text-center text-[2.2rem] md:text-[3.9rem]  leading-[2.5rem] md:leading-[4rem] tracking-tight drop-shadow-lg relative inline-block">
+          <span className="font-helvetica bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.9)_60%,rgba(255,255,255,0)_120%)] bg-clip-text text-transparent font-medium">
+            Launch PoP Tokens<br />for your event instantly
+          </span>
+        </p>
+
+        <p className="mt-3 text-center text-base md:text-lg bg-gradient-to-r from-[#DCE0FF]/70 to-[#A8AFDE] bg-clip-text leading-[1.2rem] text-transparent max-w-xl tracking-tight font-helvetica ">
+          Launch cTokens as proof-of-participation for your Web3 event, QR-accessible in just a few clicks.
+        </p>
+
+        <div className="mt-7 flex items-center justify-center gap-3 z-10">
+          <Link href="/create" className="bg-gradient-to-b from-[#FFFFFF] shadow-inner shadow-black/40 to-[#8F90D4]/80 px-4 py-2 cursor-pointer rounded-full font-semibold  transition-all flex items-center gap-2  tracking-tight backdrop-blur-md text-sm text-[#4c5bcd] active:scale-95 active:shadow-inner active:shadow-black/60 active:shadow-white/10 active:translate-y-0.5">
+            Create an event now
+            <span className=""><ArrowUpRight strokeWidth={3} className='w-4 h-4' /></span>
+          </Link>
+          <Link href="/event" className="bg-white/10 border border-white/20 text-white px-8 py-2 rounded-full shadow-sm cursor-pointer hover:bg-white/20 transition-all text-sm font-medium tracking-tight backdrop-blur-md active:scale-95 active:shadow-inner active:shadow-black/60 active:shadow-white/10 active:translate-y-0.5">
+            Live events
+          </Link>
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+      <div className="w-full flex justify-center pb-8">
+        <div className="absolute -bottom-10 md:-bottom-25 select-none pointer-events-none ">
+          <Image src="/image/bottom.png" alt="QR Code" width={700} height={120} className="object-contain  " />
+        </div>
+      </div>
     </div>
   );
 }
