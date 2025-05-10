@@ -65,11 +65,11 @@ export default function Home() {
           className="mt-7 flex items-center justify-center gap-3 z-10"
           variants={itemVariants}
         >
-          <Link href="/create" className="bg-gradient-to-b from-[#FFFFFF] shadow-inner shadow-black/40 to-[#8F90D4]/80 px-4 py-2 cursor-pointer rounded-full font-semibold transition-all flex items-center gap-2 tracking-tight backdrop-blur-md text-sm text-[#4c5bcd] active:scale-95 active:shadow-inner active:shadow-black/60 active:shadow-white/10 active:translate-y-0.5">
+          <Link href="/create" className="bg-gradient-to-b from-[#FFFFFF] shadow-inner  shadow-black/40 to-[#8F90D4]/80 px-4 py-2 cursor-pointer rounded-full font-semibold transition-all flex items-center gap-2 tracking-tight backdrop-blur-md text-xs md:text-sm text-[#4c5bcd] active:scale-95 active:shadow-inner active:shadow-black/60 active:shadow-white/10 active:translate-y-0.5">
             Create an event now
             <span className=""><ArrowUpRight strokeWidth={3} className='w-4 h-4' /></span>
           </Link>
-          <Link href="/event" className="bg-white/10 border border-white/20 text-white/80 px-8 py-2 rounded-full shadow-sm cursor-pointer hover:bg-white/20 transition-all text-sm font-medium tracking-tight backdrop-blur-md active:scale-95 active:shadow-inner  active:translate-y-0.5">
+          <Link href="/event" className="bg-white/10 border border-white/20 text-white/80 px-8 py-2 rounded-full shadow-sm cursor-pointer hover:bg-white/20 transition-all text-xs md:text-sm font-medium tracking-tight backdrop-blur-md active:scale-95 active:shadow-inner  active:translate-y-0.5">
             How it works ?
           </Link>
         </motion.div>
