@@ -3,29 +3,23 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { getEvent } from "@/app/util/actions";
+import {
+  claimAirdrop,
+  getEvent,
+  incrementAirdropSupply,
+} from "@/app/util/actions";
 import { useParams } from "next/navigation";
+import { useWallet } from "@solana/wallet-adapter-react";
+import {
+  Keypair,
+  SendTransactionError,
+  Transaction,
+  VersionedTransaction,
+} from "@solana/web3.js";
+import { connection } from "@/app/util/conn";
+import bs58 from "bs58";
+
 export default function BreakoutPage() {
-  const [eventInfo, setEventInfo] =
-    useState<Awaited<ReturnType<typeof getEvent>>>(null);
-
-  const eventId = useParams().id;
-
-  useEffect(() => {
-    const fetchEventInfo = async () => {
-      const event = await getEvent(eventId as string);
-      setEventInfo(event);
-
-      if (event) {
-        console.log(event);
-        console.log(
-          `QR should have address ${window.location.origin}/event/${event.slug}/claim`
-        );
-      }
-    };
-    fetchEventInfo();
-  }, [eventId]);
-
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -46,9 +40,58 @@ export default function BreakoutPage() {
     },
   };
 
+  const eventId = useParams().id;
+  const wallet = useWallet();
+
+  const onClickClaim = async () => {
+    if (!wallet.connected || !wallet.publicKey || !wallet.signTransaction) {
+      alert("Please connect your wallet");
+      return;
+    }
+
+    try {
+      const createdTx = await claimAirdrop(
+        eventId as string,
+        wallet.publicKey.toBase58()
+      );
+      const tx = Transaction.from(createdTx);
+
+      const signedTransaction = await wallet.signTransaction(
+        new VersionedTransaction(tx.compileMessage())
+      );
+      const escrow = Keypair.fromSecretKey(
+        bs58.decode(process.env.NEXT_PUBLIC_ESCROW_KEY as string)
+      );
+      signedTransaction.sign([escrow]);
+
+      console.log(signedTransaction.message.serialize().toString("base64"));
+
+      const signature = await connection.sendRawTransaction(
+        signedTransaction.serialize()
+      );
+
+      console.log(signature);
+
+      await connection.confirmTransaction({
+        signature,
+        ...(await connection.getLatestBlockhash()),
+      });
+      await incrementAirdropSupply(eventId as string);
+
+      alert("success");
+    } catch (error) {
+      console.error(error);
+      if (error instanceof SendTransactionError) {
+        console.log(await error.getLogs(connection));
+      } else {
+        alert("Failed");
+      }
+    }
+  };
+
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-black overflow-hidden">
-      <div className="absolute inset-0 z-0 select-none pointer-events-none">
+    <div className="relative flex flex-col items-center justify-center w-full min-h-screen overflow-hidden bg-black">
+      <div className="absolute inset-0 z-0 pointer-events-none select-none">
         <Image
           src="/image/bg-2.png"
           alt="background"
@@ -58,7 +101,7 @@ export default function BreakoutPage() {
       </div>
 
       <motion.div
-        className="flex flex-col items-center justify-center z-10 mt-32 mb-12 md:mt-10 px-4 md:px-0"
+        className="z-10 flex flex-col items-center justify-center px-4 mt-32 mb-12 md:mt-10 md:px-0"
         initial="hidden"
         animate="visible"
         variants={containerVariants}
@@ -83,25 +126,21 @@ export default function BreakoutPage() {
           variants={itemVariants}
         >
           {/* QR Code Placeholder */}
-          <motion.div variants={itemVariants}>
-            <Image
-              src="/image/qr.png"
-              alt="QR Code"
-              width={300}
-              height={100}
-              className="object-contain  mx-auto rounded-[20px] mb-4"
-            />
-          </motion.div>
 
           <motion.div
             className=" bg-gradient-to-r  from-[#DCE0FF] to-[#A8AFDE]/50 bg-clip-text text-transparent text-2xl font-medium font-helvetica mb-6 ml-2"
             variants={itemVariants}
           >
-            #BREAK0042
+            <button
+              className="px-4 py-2 text-black bg-white rounded-md cursor-pointer"
+              onClick={onClickClaim}
+            >
+              Claim
+            </button>
           </motion.div>
 
           <motion.div className="w-full mb-4" variants={itemVariants}>
-            <div className="mb-1 text-white/60 text-xs text-right mt-8">
+            <div className="mt-8 mb-1 text-xs text-right text-white/60">
               42/1000 claimed
             </div>
             <div className="relative w-full h-2 bg-[#D9D9D9]/20 rounded-full overflow-hidden ">
