@@ -180,7 +180,7 @@ export default function BreakoutPage() {
           className="mt-3 text-center text-base md:text-lg bg-gradient-to-r from-[#DCE0FF]/70 to-[#A8AFDE] bg-clip-text leading-[1.2rem] text-transparent max-w-xl tracking-tight font-helvetica mb-6"
           variants={itemVariants}
         >
-          Scan the QR with Solana Play to get your PoP token
+          Claim your PoP token by connecting your wallet and signing a transaction
         </motion.p>
 
         <motion.div
