@@ -1,6 +1,8 @@
 # PopNow - Proof of Participation Token Platform
 
 PopNow is a web application that allows users to easily create and distribute compressed Solana tokens (cTokens) as proof-of-participation for events. The platform leverages Solana's ZK compression technology to provide an efficient and user-friendly way to distribute tokens.
+<img width="1508" alt="Screenshot 2025-05-12 at 11 41 42 AM" src="https://github.com/user-attachments/assets/5cd0b089-be17-4737-9705-c7b50d57081e" />
+
 
 ## Features
 
