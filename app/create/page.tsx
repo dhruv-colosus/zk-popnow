@@ -3,478 +3,457 @@
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, XCircle } from "lucide-react";
+import { Upload, XCircle, Loader2 } from "lucide-react";
 import { connection } from "../util/conn";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useUmi } from "../hooks/use-umi";
 import {
-  createAssociatedTokenAccountInstruction,
-  getAssociatedTokenAddressSync,
-  MINT_SIZE,
-  TOKEN_PROGRAM_ID,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  mintTo,
-  createMintToInstruction,
+    createAssociatedTokenAccountInstruction,
+    getAssociatedTokenAddressSync,
+    MINT_SIZE,
+    TOKEN_PROGRAM_ID,
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+    mintTo,
+    createMintToInstruction,
 } from "@solana/spl-token";
 import {
-  Keypair,
-  PublicKey,
-  Transaction,
-  VersionedTransaction,
+    Keypair,
+    PublicKey,
+    Transaction,
+    VersionedTransaction,
 } from "@solana/web3.js";
 import {
-  CompressedTokenProgram,
-  createTokenPool,
-  getTokenPoolInfos,
-  selectTokenPoolInfo,
+    CompressedTokenProgram,
+    createTokenPool,
+    getTokenPoolInfos,
+    selectTokenPoolInfo,
 } from "@lightprotocol/compressed-token";
 import { createMetadataAccountV3 } from "@metaplex-foundation/mpl-token-metadata";
 import { zipMap } from "@metaplex-foundation/js";
 import { selectStateTreeInfo } from "@lightprotocol/stateless.js";
 import { useRouter } from "next/navigation";
 import { createEvent, uploadToCloudinary } from "../util/actions";
-
-const Toast = ({
-  message,
-  onClose,
-}: {
-  message: string;
-  onClose: () => void;
-}) => {
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      onClose();
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [onClose]);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-[#1e1e44]/80 backdrop-blur-md px-6 py-3 rounded-xl border border-white/10 text-white font-helvetica shadow-lg z-50 flex items-center gap-2 max-w-[90%] w-auto"
-    >
-      <span>{message}</span>
-      <button onClick={onClose} className="text-white/60 hover:text-white">
-        <XCircle size={18} />
-      </button>
-    </motion.div>
-  );
-};
+import { toast } from "sonner";
+import { Toaster } from "../../components/ui/sonner";
 
 export default function CreatePage() {
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [eventName, setEventName] = useState("");
-  const [totalSupply, setTotalSupply] = useState("");
-  const [decimal, setDecimal] = useState("0");
-  const [toast, setToast] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [eventName, setEventName] = useState("");
+    const [totalSupply, setTotalSupply] = useState("");
+    const [decimal, setDecimal] = useState("0");
+    const [isLoading, setIsLoading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.15,
-        delayChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: -10 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.4, ease: "easeOut" },
-    },
-  };
-
-  const isFormValid =
-    eventName.trim() !== "" &&
-    totalSupply.trim() !== "" &&
-    selectedImage !== null;
-
-  const showToast = (message: string) => {
-    setToast(message);
-  };
-
-  const closeToast = () => {
-    setToast(null);
-  };
-
-  const wallet = useWallet();
-  const umi = useUmi();
-  const router = useRouter();
-
-  const handleMintTokens = async () => {
-    if (!wallet.publicKey || !wallet.signTransaction) {
-      showToast("Please connect your wallet");
-      return;
-    }
-    if (!isFormValid) {
-      if (!eventName.trim()) {
-        showToast("Please enter an event name");
-      } else if (!totalSupply.trim()) {
-        showToast("Please enter a total supply");
-      } else if (!selectedImage) {
-        showToast("Please select an image");
-      }
-      return;
-    }
-
-    const data = {
-      eventName,
-      totalSupply,
-      decimal,
-      selectedImage,
-    };
-    console.log(JSON.stringify(data));
-
-    const { url, publicId } = await uploadToCloudinary(
-      await fetch(selectedImage).then((res) => res.arrayBuffer()),
-      "image/png"
-    );
-
-    console.log(url, publicId);
-
-    console.log("Uploaded image");
-
-    try {
-      const transaction = new Transaction();
-
-      const tokenMint = Keypair.generate();
-
-      const createMintInstruction = await CompressedTokenProgram.createMint({
-        feePayer: wallet.publicKey,
-        authority: wallet.publicKey,
-        mint: tokenMint.publicKey,
-        decimals: 0,
-        freezeAuthority: null,
-        rentExemptBalance: await connection.getMinimumBalanceForRentExemption(
-          MINT_SIZE
-        ),
-      });
-
-      let createMetadataInstructions = createMetadataAccountV3(umi, {
-        data: {
-          name: eventName,
-          symbol: eventName.slice(0, 4).toUpperCase(), // TODO chage this
-          uri: url,
-          sellerFeeBasisPoints: 0,
-          creators: null,
-          collection: null,
-          uses: null,
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: {
+            opacity: 1,
+            transition: {
+                staggerChildren: 0.15,
+                delayChildren: 0.1,
+            },
         },
-        mint: tokenMint.publicKey as any,
-        mintAuthority: wallet.publicKey as any,
-        isMutable: false,
-        collectionDetails: null,
-      }).getInstructions();
+    };
 
-      const ataAddress = getAssociatedTokenAddressSync(
-        tokenMint.publicKey,
-        new PublicKey(process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string)
-      );
-      console.log("ata", ataAddress, ataAddress.toBase58());
+    const itemVariants = {
+        hidden: { opacity: 0, y: -10 },
+        visible: {
+            opacity: 1,
+            y: 0,
+            transition: { duration: 0.4, ease: "easeOut" },
+        },
+    };
 
-      const createAtaInstruction = createAssociatedTokenAccountInstruction(
-        wallet.publicKey,
-        ataAddress,
-        new PublicKey(process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string),
-        tokenMint.publicKey
-      );
+    const isFormValid =
+        eventName.trim() !== "" &&
+        totalSupply.trim() !== "" &&
+        selectedImage !== null;
 
-      // fuck this library
-      createMetadataInstructions.forEach((inst) => {
-        inst.keys = inst.keys.map((key: any) => {
-          return {
-            pubkey: new PublicKey(key.pubkey.toString()),
-            isSigner: key.isSigner,
-            isWritable: key.isWritable,
-          };
-        }) as any;
-      });
+    const wallet = useWallet();
+    const umi = useUmi();
+    const router = useRouter();
 
-      transaction.add(...createMintInstruction);
-      transaction.add(...(createMetadataInstructions as any));
-      transaction.add(createAtaInstruction);
+    const handleMintTokens = async () => {
+        if (!wallet.publicKey || !wallet.signTransaction) {
+            toast.error("Please connect your wallet");
+            return;
+        }
+        if (!isFormValid) {
+            if (!eventName.trim()) {
+                toast.error("Please enter an event name");
+            } else if (!totalSupply.trim()) {
+                toast.error("Please enter a total supply");
+            } else if (!selectedImage) {
+                toast.error("Please select an image");
+            }
+            return;
+        }
 
-      transaction.feePayer = wallet.publicKey;
-      transaction.recentBlockhash = (
-        await connection.getLatestBlockhash()
-      ).blockhash;
-      
-      const signedTransaction = await wallet.signTransaction(
-        new VersionedTransaction(transaction.compileMessage())
-      );
-      signedTransaction.sign([tokenMint]);
+        setIsLoading(true);
 
-      console.log(signedTransaction.message.serialize().toString("base64"));
+        try {
+            const data = {
+                eventName,
+                totalSupply,
+                decimal,
+                selectedImage,
+            };
+            console.log(JSON.stringify(data));
 
-      const signature = await connection.sendRawTransaction(
-        signedTransaction.serialize()
-      );
+            const { url, publicId } = await uploadToCloudinary(
+                await fetch(selectedImage).then((res) => res.arrayBuffer()),
+                "image/png"
+            );
 
-      console.log(
-        `create-mint success! txId: ${signature}, mint: ${tokenMint.publicKey.toBase58()}`
-      );
+            console.log(url, publicId);
 
-      showToast(`Transaction sent successfully, waiting for confirmation...`);
+            console.log("Uploaded image");
 
-      await connection.confirmTransaction({
-        signature,
-        ...(await connection.getLatestBlockhash()),
-      });
+            const transaction = new Transaction();
 
-      showToast(
-        `Token mint created at ${tokenMint.publicKey.toBase58()}\n Signature: ${signature}`
-      );
+            const tokenMint = Keypair.generate();
 
-      const stateTreeInfos = await connection.getStateTreeInfos();
-      const stateTreeInfo = selectStateTreeInfo(stateTreeInfos);
-      const poolInfos = await getTokenPoolInfos(
-        connection,
-        tokenMint.publicKey
-      );
-      // const mintToInstruction = await CompressedTokenProgram.mintTo({
-      //   feePayer: wallet.publicKey,
-      //   authority: wallet.publicKey,
-      //   mint: tokenMint.publicKey,
-      //   toPubkey: ataAddress,
-      //   amount: Number(totalSupply),
-      //   outputStateTreeInfo: stateTreeInfo,
-      //   tokenPoolInfo: selectTokenPoolInfo(poolInfos),
-      // });
+            const createMintInstruction = await CompressedTokenProgram.createMint({
+                feePayer: wallet.publicKey,
+                authority: wallet.publicKey,
+                mint: tokenMint.publicKey,
+                decimals: 0,
+                freezeAuthority: null,
+                rentExemptBalance: await connection.getMinimumBalanceForRentExemption(
+                    MINT_SIZE
+                ),
+            });
 
-      const mintToInstruction = createMintToInstruction(
-        tokenMint.publicKey,
-        ataAddress,
-        new PublicKey(process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string),
-        Number(totalSupply)
-      );
+            let createMetadataInstructions = createMetadataAccountV3(umi, {
+                data: {
+                    name: eventName,
+                    symbol: eventName.slice(0, 4).toUpperCase(), // TODO chage this
+                    uri: url,
+                    sellerFeeBasisPoints: 0,
+                    creators: null,
+                    collection: null,
+                    uses: null,
+                },
+                mint: tokenMint.publicKey as any,
+                mintAuthority: wallet.publicKey as any,
+                isMutable: false,
+                collectionDetails: null,
+            }).getInstructions();
 
-      console.log(stateTreeInfo);
+            const ataAddress = getAssociatedTokenAddressSync(
+                tokenMint.publicKey,
+                new PublicKey(process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string)
+            );
+            console.log("ata", ataAddress, ataAddress.toBase58());
 
-      const mintTx = new Transaction();
-      mintTx.add(mintToInstruction);
-      mintTx.feePayer = wallet.publicKey;
-      mintTx.recentBlockhash = (
-        await connection.getLatestBlockhash()
-      ).blockhash;
+            const createAtaInstruction = createAssociatedTokenAccountInstruction(
+                wallet.publicKey,
+                ataAddress,
+                new PublicKey(process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string),
+                tokenMint.publicKey
+            );
 
-      const signedMintTx = await wallet.signTransaction(
-        new VersionedTransaction(mintTx.compileMessage())
-      );
+            // fuck this library
+            createMetadataInstructions.forEach((inst) => {
+                inst.keys = inst.keys.map((key: any) => {
+                    return {
+                        pubkey: new PublicKey(key.pubkey.toString()),
+                        isSigner: key.isSigner,
+                        isWritable: key.isWritable,
+                    };
+                }) as any;
+            });
 
-      console.log(signedMintTx.message.serialize().toString("base64"));
+            transaction.add(...createMintInstruction);
+            transaction.add(...(createMetadataInstructions as any));
+            transaction.add(createAtaInstruction);
 
-      const mintSignature = await connection.sendRawTransaction(
-        signedMintTx.serialize()
-      );
+            transaction.feePayer = wallet.publicKey;
+            transaction.recentBlockhash = (
+                await connection.getLatestBlockhash()
+            ).blockhash;
 
-      showToast(`Minting tokens...`);
+            const signedTransaction = await wallet.signTransaction(
+                new VersionedTransaction(transaction.compileMessage())
+            );
+            signedTransaction.sign([tokenMint]);
 
-      await connection.confirmTransaction({
-        signature: mintSignature,
-        ...(await connection.getLatestBlockhash()),
-      });
+            console.log(signedTransaction.message.serialize().toString("base64"));
 
-      showToast(`Tokens minted successfully\nSignature: ${mintSignature}`);
+            const signature = await connection.sendRawTransaction(
+                signedTransaction.serialize()
+            );
 
-      const slug = await createEvent({
-        name: eventName,
-        totalSupply: parseInt(totalSupply),
-        imageUrl: url,
-        mintAddress: tokenMint.publicKey.toBase58(),
-      });
+            console.log(
+                `create-mint success! txId: ${signature}, mint: ${tokenMint.publicKey.toBase58()}`
+            );
 
-      router.push(`/event/${slug}`);
-    } catch (e) {
-      console.log(e);
-      showToast("Failed to create token mint");
-    }
-  };
+            toast.loading(`Transaction sent successfully, waiting for confirmation...`);
 
-  const handleImageClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
+            await connection.confirmTransaction({
+                signature,
+                ...(await connection.getLatestBlockhash()),
+            });
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const imageUrl = URL.createObjectURL(file);
-      setSelectedImage(imageUrl);
-    }
-  };
+            toast.success(
+                `Token mint created at ${tokenMint.publicKey.toBase58()}\nSignature: ${signature}`
+            );
 
-  return (
-    <div className="relative flex flex-col items-center justify-center w-full min-h-screen overflow-hidden bg-black font-helvetica">
-      <div className="absolute inset-0 z-0 pointer-events-none select-none">
-        <Image
-          src="/image/bg-2.png"
-          alt="background"
-          fill
-          className="object-cover"
-        />
-      </div>
+            const stateTreeInfos = await connection.getStateTreeInfos();
+            const stateTreeInfo = selectStateTreeInfo(stateTreeInfos);
+            const poolInfos = await getTokenPoolInfos(
+                connection,
+                tokenMint.publicKey
+            );
+            // const mintToInstruction = await CompressedTokenProgram.mintTo({
+            //   feePayer: wallet.publicKey,
+            //   authority: wallet.publicKey,
+            //   mint: tokenMint.publicKey,
+            //   toPubkey: ataAddress,
+            //   amount: Number(totalSupply),
+            //   outputStateTreeInfo: stateTreeInfo,
+            //   tokenPoolInfo: selectTokenPoolInfo(poolInfos),
+            // });
 
-      <motion.div
-        className="flex flex-col items-center justify-center z-10 mt-20 md:mt-10 px-4 md:px-0 mb-16 font-helvetica w-full max-w-[95%] md:max-w-4xl"
-        initial="hidden"
-        animate="visible"
-        variants={containerVariants}
-      >
-        <motion.h1
-          className="text-center text-[2.5rem] md:text-[4rem] leading-[2.8rem] md:leading-[4.2rem] tracking-tight drop-shadow-lg mb-6 md:mb-10 font-helvetica"
-          variants={itemVariants}
-        >
-          <span className="font-helvetica bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.9)_60%,rgba(255,255,255,0)_120%)] bg-clip-text text-transparent font-medium">
-            Create your cToken
-          </span>
-        </motion.h1>
+            const mintToInstruction = createMintToInstruction(
+                tokenMint.publicKey,
+                ataAddress,
+                new PublicKey(process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string),
+                Number(totalSupply)
+            );
 
-        <motion.div
-          className="bg-[#ffffff]/3 backdrop-blur-md rounded-[30px] md:rounded-[60px] p-5 md:p-8 border border-[#727272]/20 shadow-lg w-full font-helvetica"
-          variants={itemVariants}
-        >
-          <motion.div variants={itemVariants}>
-            <h2 className="bg-gradient-to-r from-[#f6f7ff] to-[#959edc]/70 bg-clip-text font-helvetica text-lg md:text-xl font-regular mb-6 md:mb-8 text-transparent">
-              Create Your Event & Mint Participation Tokens
-            </h2>
-          </motion.div>
+            console.log(stateTreeInfo);
 
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-32 font-helvetica">
-            <div className="flex flex-col gap-5 md:gap-6 font-helvetica">
-              <motion.div
-                className="flex flex-col gap-2 font-helvetica"
-                variants={itemVariants}
-              >
-                <label className="text-sm text-white/70 font-helvetica">
-                  Event name
-                </label>
-                <input
-                  type="text"
-                  placeholder="event name ...."
-                  className="px-4 py-2 text-white border bg-white/5 border-white/10 rounded-2xl focus:outline-none focus:ring-1 focus:ring-white/30 font-helvetica"
-                  value={eventName}
-                  onChange={(e) => setEventName(e.target.value)}
+            const mintTx = new Transaction();
+            mintTx.add(mintToInstruction);
+            mintTx.feePayer = wallet.publicKey;
+            mintTx.recentBlockhash = (
+                await connection.getLatestBlockhash()
+            ).blockhash;
+
+            const signedMintTx = await wallet.signTransaction(
+                new VersionedTransaction(mintTx.compileMessage())
+            );
+
+            console.log(signedMintTx.message.serialize().toString("base64"));
+
+            const mintSignature = await connection.sendRawTransaction(
+                signedMintTx.serialize()
+            );
+
+            toast.loading(`Minting tokens...`);
+
+            await connection.confirmTransaction({
+                signature: mintSignature,
+                ...(await connection.getLatestBlockhash()),
+            });
+
+            toast.success(`Tokens minted successfully\nSignature: ${mintSignature}`);
+
+            const slug = await createEvent({
+                name: eventName,
+                totalSupply: parseInt(totalSupply),
+                imageUrl: url,
+                mintAddress: tokenMint.publicKey.toBase58(),
+            });
+
+            router.push(`/event/${slug}`);
+        } catch (e) {
+            console.log(e);
+            toast.error("Failed to create token mint");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleImageClick = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const imageUrl = URL.createObjectURL(file);
+            setSelectedImage(imageUrl);
+        }
+    };
+
+    return (
+        <div className="relative flex flex-col items-center justify-center w-full min-h-screen overflow-hidden bg-black font-helvetica">
+            <div className="absolute inset-0 z-0 pointer-events-none select-none">
+                <Image
+                    src="/image/bg-2.png"
+                    alt="background"
+                    fill
+                    className="object-cover"
                 />
-              </motion.div>
-
-              <motion.div
-                className="flex flex-col gap-2 font-helvetica"
-                variants={itemVariants}
-              >
-                <label className="text-sm text-white/70 font-helvetica">
-                  Total supply
-                </label>
-                <div className="relative font-helvetica">
-                  <input
-                    type="number"
-                    placeholder="1000"
-                    className="w-full px-4 py-2 text-white border bg-white/5 border-white/10 rounded-2xl focus:outline-none focus:ring-1 focus:ring-white/30 font-helvetica"
-                    value={totalSupply}
-                    onChange={(e) => setTotalSupply(e.target.value)}
-                  />
-                  <span className="absolute text-sm transform -translate-y-1/2 right-4 top-1/2 text-white/50 font-helvetica">
-                    tokens
-                  </span>
-                </div>
-              </motion.div>
-
-              <motion.div
-                className="flex flex-col gap-2 font-helvetica"
-                variants={itemVariants}
-              >
-                <label className="text-sm text-white/70 font-helvetica">
-                  Decimal
-                </label>
-                <div className="relative font-helvetica">
-                  <input
-                    type="number"
-                    placeholder="0"
-                    className="w-full px-4 py-2 text-white border bg-white/20 border-white/10 rounded-2xl focus:outline-none focus:ring-1 focus:ring-white/30 font-helvetica"
-                    value={decimal}
-                    onChange={(e) => setDecimal(e.target.value)}
-                    disabled={true}
-                  />
-                  <span className="absolute text-sm transform -translate-y-1/2 right-4 top-1/2 text-white/50 font-helvetica">
-                    fixed
-                  </span>
-                </div>
-              </motion.div>
             </div>
 
             <motion.div
-              className="flex flex-col gap-2 mt-2 font-helvetica md:mt-0"
-              variants={itemVariants}
+                className="flex flex-col items-center justify-center z-10 mt-20 md:mt-10 px-4 md:px-0 mb-16 font-helvetica w-full max-w-[95%] md:max-w-4xl"
+                initial="hidden"
+                animate="visible"
+                variants={containerVariants}
             >
-              <label className="text-sm text-white/70 font-helvetica">
-                Optional Artwork
-              </label>
-              <div
-                className="relative h-[200px] md:h-[250px] bg-[#1e1e44]/10 rounded-xl border border-dashed border-white/10 overflow-hidden flex items-center justify-center font-helvetica"
-                style={{ padding: "10px" }}
-              >
-                {selectedImage ? (
-                  <div
-                    className="relative w-full h-full cursor-pointer"
-                    onClick={handleImageClick}
-                  >
-                    <Image
-                      src={selectedImage}
-                      alt="Token artwork"
-                      fill
-                      className="object-cover"
-                    />
-                    <div className="absolute p-2 rounded-full bottom-3 right-3 bg-black/50 backdrop-blur-sm">
-                      <Upload className="w-4 h-4 text-white/70" />
-                    </div>
-                  </div>
-                ) : (
-                  <label className="flex flex-col items-center justify-center w-full h-full gap-3 cursor-pointer font-helvetica">
-                    <div className="p-3 rounded-full bg-white/5">
-                      <Upload className="w-6 h-6 text-blue-400/50" />
-                    </div>
-                    <span className="text-sm text-center text-white/60 font-helvetica">
-                      Select or drop an image
+                <motion.h1
+                    className="text-center text-[2.5rem] md:text-[4rem] leading-[2.8rem] md:leading-[4.2rem] tracking-tight drop-shadow-lg mb-6 md:mb-10 font-helvetica"
+                    variants={itemVariants}
+                >
+                    <span className="font-helvetica bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.9)_60%,rgba(255,255,255,0)_120%)] bg-clip-text text-transparent font-medium">
+                        Create your cToken
                     </span>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleImageChange}
-                      ref={fileInputRef}
-                    />
-                  </label>
-                )}
-              </div>
+                </motion.h1>
+
+                <motion.div
+                    className="bg-[#ffffff]/3 backdrop-blur-md rounded-[30px] md:rounded-[60px] p-5 md:p-8 border border-[#727272]/20 shadow-lg w-full font-helvetica"
+                    variants={itemVariants}
+                >
+                    <motion.div variants={itemVariants}>
+                        <h2 className="bg-gradient-to-r from-[#f6f7ff] to-[#959edc]/70 bg-clip-text font-helvetica text-lg md:text-xl font-regular mb-6 md:mb-8 text-transparent">
+                            Create Your Event & Mint Participation Tokens
+                        </h2>
+                    </motion.div>
+
+                    <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-32 font-helvetica">
+                        <div className="flex flex-col gap-5 md:gap-6 font-helvetica">
+                            <motion.div
+                                className="flex flex-col gap-2 font-helvetica"
+                                variants={itemVariants}
+                            >
+                                <label className="text-sm text-white/70 font-helvetica">
+                                    Event name
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="event name ...."
+                                    className="px-4 py-2 text-white border bg-white/5 border-white/10 rounded-2xl focus:outline-none focus:ring-1 focus:ring-white/30 font-helvetica"
+                                    value={eventName}
+                                    onChange={(e) => setEventName(e.target.value)}
+                                />
+                            </motion.div>
+
+                            <motion.div
+                                className="flex flex-col gap-2 font-helvetica"
+                                variants={itemVariants}
+                            >
+                                <label className="text-sm text-white/70 font-helvetica">
+                                    Total supply
+                                </label>
+                                <div className="relative font-helvetica">
+                                    <input
+                                        type="number"
+                                        placeholder="1000"
+                                        className="w-full px-4 py-2 text-white border bg-white/5 border-white/10 rounded-2xl focus:outline-none focus:ring-1 focus:ring-white/30 font-helvetica"
+                                        value={totalSupply}
+                                        onChange={(e) => setTotalSupply(e.target.value)}
+                                    />
+                                    <span className="absolute text-sm transform -translate-y-1/2 right-4 top-1/2 text-white/50 font-helvetica">
+                                        tokens
+                                    </span>
+                                </div>
+                            </motion.div>
+
+                            <motion.div
+                                className="flex flex-col gap-2 font-helvetica"
+                                variants={itemVariants}
+                            >
+                                <label className="text-sm text-white/70 font-helvetica">
+                                    Decimal
+                                </label>
+                                <div className="relative font-helvetica">
+                                    <input
+                                        type="number"
+                                        placeholder="0"
+                                        className="w-full px-4 py-2 text-white border bg-white/20 border-white/10 rounded-2xl focus:outline-none focus:ring-1 focus:ring-white/30 font-helvetica"
+                                        value={decimal}
+                                        onChange={(e) => setDecimal(e.target.value)}
+                                        disabled={true}
+                                    />
+                                    <span className="absolute text-sm transform -translate-y-1/2 right-4 top-1/2 text-white/50 font-helvetica">
+                                        fixed
+                                    </span>
+                                </div>
+                            </motion.div>
+                        </div>
+
+                        <motion.div
+                            className="flex flex-col gap-2 mt-2 font-helvetica md:mt-0"
+                            variants={itemVariants}
+                        >
+                            <label className="text-sm text-white/70 font-helvetica">
+                                Optional Artwork
+                            </label>
+                            <div
+                                className="relative h-[200px] md:h-[250px] bg-[#1e1e44]/10 rounded-xl border border-dashed border-white/10 overflow-hidden flex items-center justify-center font-helvetica"
+                                style={{ padding: "10px" }}
+                            >
+                                {selectedImage ? (
+                                    <div
+                                        className="relative w-full h-full cursor-pointer"
+                                        onClick={handleImageClick}
+                                    >
+                                        <Image
+                                            src={selectedImage}
+                                            alt="Token artwork"
+                                            fill
+                                            className="object-cover"
+                                        />
+                                        <div className="absolute p-2 rounded-full bottom-3 right-3 bg-black/50 backdrop-blur-sm">
+                                            <Upload className="w-4 h-4 text-white/70" />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <label className="flex flex-col items-center justify-center w-full h-full gap-3 cursor-pointer font-helvetica">
+                                        <div className="p-3 rounded-full bg-white/5">
+                                            <Upload className="w-6 h-6 text-blue-400/50" />
+                                        </div>
+                                        <span className="text-sm text-center text-white/60 font-helvetica">
+                                            Select or drop an image
+                                        </span>
+                                        <input
+                                            type="file"
+                                            className="hidden"
+                                            accept="image/*"
+                                            onChange={handleImageChange}
+                                            ref={fileInputRef}
+                                        />
+                                    </label>
+                                )}
+                            </div>
+                        </motion.div>
+                    </div>
+
+                    <motion.button
+                        className={`w-full mt-6 md:mt-8 py-3 rounded-full font-medium tracking-tight backdrop-blur-md shadow-inner shadow-black/40 transition-all text-sm font-helvetica flex items-center justify-center ${isFormValid && !isLoading
+                            ? "bg-gradient-to-b from-[#FFFFFF] to-[#8F90D4]/80 text-[#4c5bcd] active:scale-95 active:shadow-inner active:shadow-black/60 active:translate-y-0.5"
+                            : "bg-gradient-to-b from-[#FFFFFF]/40 to-[#4c5bcd]/50 text-[#ffffff]/40 cursor-not-allowed"
+                            }`}
+                        variants={itemVariants}
+                        onClick={handleMintTokens}
+                        disabled={!isFormValid || isLoading}
+                    >
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                minting...
+                            </>
+                        ) : (
+                            "mint tokens"
+                        )}
+                    </motion.button>
+                </motion.div>
             </motion.div>
-          </div>
 
-          <motion.button
-            className={`w-full mt-6 md:mt-8 py-3 rounded-full font-medium tracking-tight backdrop-blur-md shadow-inner shadow-black/40 transition-all text-sm font-helvetica ${
-              isFormValid
-                ? "bg-gradient-to-b from-[#FFFFFF] to-[#8F90D4]/80 text-[#4c5bcd] active:scale-95 active:shadow-inner active:shadow-black/60 active:translate-y-0.5"
-                : "bg-gradient-to-b from-[#FFFFFF]/40 to-[#4c5bcd]/50 text-[#ffffff]/40 cursor-not-allowed"
-            }`}
-            variants={itemVariants}
-            onClick={handleMintTokens}
-            disabled={!isFormValid}
-          >
-            mint tokens
-          </motion.button>
-        </motion.div>
-      </motion.div>
-
-      <AnimatePresence>
-        {toast && <Toast message={toast} onClose={closeToast} />}
-      </AnimatePresence>
-    </div>
-  );
+            <Toaster
+                position="bottom-center"
+                duration={3000}
+                closeButton
+                richColors
+                theme="dark"
+                className="!fixed !bottom-6 !left-1/2 !transform !-translate-x-1/2"
+            />
+        </div>
+    );
 }

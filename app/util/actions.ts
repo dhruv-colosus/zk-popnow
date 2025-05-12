@@ -33,6 +33,7 @@ export async function uploadToCloudinary(
   type: string
 ) {
   try {
+
     const buffer = Buffer.from(arrayBuffer);
     const base64String = buffer.toString("base64");
     const dataURI = `data:${type};base64,${base64String}`;
@@ -61,7 +62,14 @@ type Event = {
 };
 
 export async function createEvent(event: Event) {
-  const slug = event.name.toLowerCase().replace(/ /g, "-");
+  let slug = event.name.toLowerCase().replace(/ /g, "-");
+  
+  const existingEvent = await prisma.event.findFirst({ where: { slug } });
+  
+  if (existingEvent) {
+    const uuid = Math.random().toString(36).substring(2, 10);
+    slug = `${uuid}-${slug}`;
+  }
 
   await prisma.event.create({
     data: {
