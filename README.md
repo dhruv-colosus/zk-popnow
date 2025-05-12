@@ -1,4 +1,31 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PopNow - Proof of Participation Token Platform
+
+PopNow is a web application that allows users to easily create and distribute compressed Solana tokens (cTokens) as proof-of-participation for events. The platform leverages Solana's ZK compression technology to provide an efficient and user-friendly way to distribute tokens.
+
+## Features
+
+- Create event-specific cTokens with custom images and supply
+- Generate QR codes for easy token claiming
+- Distribute compressed tokens (cTokens) to event participants
+- Built on Solana blockchain with ZK compression support
+- Cloudinary integration for image storage
+
+## Tech Stack
+
+- **Frontend**: Next.js 14 with App Router
+- **Styling**: TailwindCSS with NativeWind
+- **Blockchain**: Solana Web3.js, SPL Token, Light Protocol (Compressed Tokens)
+- **Database**: Prisma with PostgreSQL
+- **Animation**: Framer Motion
+- **Image Storage**: Cloudinary
+
+## Application Routes
+
+- **/** - Home page with information about the platform
+- **/create** - Create new event tokens with custom name, supply, and image
+- **/event** - Information page explaining how the platform works
+- **/event/[id]** - View specific event details and claim token
+- **/event/[id]/claim** - Token claim page for participants
 
 ## Getting Started
 
@@ -16,21 +43,29 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The application requires several environment variables to be set:
 
-## Learn More
+```
+# Cloudinary
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
 
-To learn more about Next.js, take a look at the following resources:
+# Solana
+NEXT_PUBLIC_RPC_URL=
+NEXT_PUBLIC_ESCROW_ADDRESS=
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Database
+DATABASE_URL=
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## How It Works
 
-## Deploy on Vercel
+1. **Create an Event**: Organizers create a new event with a name, token supply, and custom image
+2. **Generate QR Code**: A unique QR code is generated for the event
+3. **Share with Participants**: Participants scan the QR code at the event
+4. **Claim Tokens**: Participants connect their Solana wallet to claim a compressed token
+5. **Proof of Participation**: Participants now have a verifiable proof of attendance on Solana
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
