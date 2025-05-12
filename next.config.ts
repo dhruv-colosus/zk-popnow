@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   output: "standalone",
+  experimental: {
+    webpackMemoryOptimizations: true,
+    turbopackMemoryLimit: 2048,
+  },
   images: {
     remotePatterns: [
       {

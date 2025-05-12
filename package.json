@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --max-old-space-size=2048",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
