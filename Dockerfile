@@ -11,7 +11,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm i -g corepack@latest && corepack enable pnpm && pnpm prisma generate && pnpm run build
+RUN npm i -g corepack@latest && corepack enable pnpm && pnpm prisma generate --no-engine && pnpm run build
 
 FROM base AS runner
 WORKDIR /app
