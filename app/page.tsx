@@ -86,7 +86,7 @@ export default function Home() {
             href="/event"
             className="bg-white/10 border border-white/20 text-white/80 px-8 py-2 rounded-full shadow-sm cursor-pointer hover:bg-white/20 transition-all text-xs md:text-sm font-medium tracking-tight backdrop-blur-md active:scale-95 active:shadow-inner  active:translate-y-0.5"
           >
-            How it works ?
+            Live Events
           </Link>
         </motion.div>
       </motion.main>

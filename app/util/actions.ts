@@ -147,3 +147,11 @@ export const incrementAirdropSupply = async (slug: string) => {
     data: { currentSupply: { decrement: 1 } },
   });
 };
+
+export async function getAllEvents() {
+  return await prisma.event.findMany({
+    orderBy: {
+      createdAt: 'desc'
+    }
+  });
+}
