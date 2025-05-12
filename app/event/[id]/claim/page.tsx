@@ -12,6 +12,7 @@ import { useParams } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import {
   Keypair,
+  PublicKey,
   SendTransactionError,
   Transaction,
   VersionedTransaction,
@@ -19,6 +20,8 @@ import {
 import { connection } from "@/app/util/conn";
 import bs58 from "bs58";
 import Link from "next/link";
+import { toast, Toaster } from "sonner";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 
 export default function BreakoutPage() {
   const containerVariants = {
@@ -44,8 +47,29 @@ export default function BreakoutPage() {
   const eventId = useParams().id;
   const wallet = useWallet();
   const [isLoading, setIsLoading] = useState(false);
-  const [eventInfo, setEventInfo] = useState<Awaited<ReturnType<typeof getEvent>>>(null);
+  const [eventInfo, setEventInfo] =
+    useState<Awaited<ReturnType<typeof getEvent>>>(null);
   const [notFound, setNotFound] = useState(false);
+
+  const [escrowBalance, setEscrowBalance] = useState(
+    eventInfo?.totalSupply || 0
+  );
+
+  useEffect(() => {
+    const fetchEscrowBalance = async () => {
+      const ataAddress = getAssociatedTokenAddressSync(
+        new PublicKey(eventInfo?.mintAddress as string),
+        new PublicKey(process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string)
+      );
+      const balance = await connection.getTokenAccountBalance(ataAddress);
+      console.log("escrow balance", balance);
+      setEscrowBalance(Number(balance.value.amount));
+    };
+
+    const interval = setInterval(fetchEscrowBalance, 5000);
+    fetchEscrowBalance();
+    return () => clearInterval(interval);
+  }, [eventInfo]);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -82,9 +106,11 @@ export default function BreakoutPage() {
       const signedTransaction = await wallet.signTransaction(
         new VersionedTransaction(tx.compileMessage())
       );
+
       const escrow = Keypair.fromSecretKey(
         bs58.decode(process.env.NEXT_PUBLIC_ESCROW_KEY as string)
       );
+
       signedTransaction.sign([escrow]);
 
       const signature = await connection.sendRawTransaction(
@@ -97,13 +123,13 @@ export default function BreakoutPage() {
       });
       await incrementAirdropSupply(eventId as string);
 
-      alert("Successfully claimed token!");
+      toast.success("Successfully claimed token!");
     } catch (error) {
       console.error(error);
       if (error instanceof SendTransactionError) {
         console.log(await error.getLogs(connection));
       }
-      alert("Failed to claim token");
+      toast.error("Failed to claim token");
     } finally {
       setIsLoading(false);
     }
@@ -111,8 +137,8 @@ export default function BreakoutPage() {
 
   if (notFound) {
     return (
-      <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-black overflow-hidden">
-        <div className="absolute inset-0 z-0 select-none pointer-events-none">
+      <div className="relative flex flex-col items-center justify-center w-full min-h-screen overflow-hidden bg-black">
+        <div className="absolute inset-0 z-0 pointer-events-none select-none">
           <Image
             src="/image/bg-2.png"
             alt="background"
@@ -121,7 +147,7 @@ export default function BreakoutPage() {
           />
         </div>
         <motion.div
-          className="flex flex-col items-center justify-center z-10 mt-32 mb-12 md:mt-10 px-4 md:px-0"
+          className="z-10 flex flex-col items-center justify-center px-4 mt-32 mb-12 md:mt-10 md:px-0"
           initial="hidden"
           animate="visible"
           variants={containerVariants}
@@ -173,14 +199,15 @@ export default function BreakoutPage() {
           variants={itemVariants}
         >
           <span className="font-helvetica bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.9)_60%,rgba(255,255,255,0)_120%)] bg-clip-text text-transparent font-medium">
-            Welcome to {eventInfo?.name || 'Breakout'}
+            Welcome to {eventInfo?.name || "Breakout"}
           </span>
         </motion.h1>
         <motion.p
           className="mt-3 text-center text-base md:text-lg bg-gradient-to-r from-[#DCE0FF]/70 to-[#A8AFDE] bg-clip-text leading-[1.2rem] text-transparent max-w-xl tracking-tight font-helvetica mb-6"
           variants={itemVariants}
         >
-          Claim your PoP token by connecting your wallet and signing a transaction
+          Claim your PoP token by connecting your wallet and signing a
+          transaction
         </motion.p>
 
         <motion.div
@@ -189,7 +216,7 @@ export default function BreakoutPage() {
         >
           {eventInfo?.imageUrl && (
             <motion.div
-              className="relative w-full aspect-video rounded-2xl overflow-hidden mb-6"
+              className="relative w-full mb-6 overflow-hidden aspect-video rounded-2xl"
               variants={itemVariants}
             >
               <Image
@@ -205,9 +232,11 @@ export default function BreakoutPage() {
             className="bg-gradient-to-r from-[#DCE0FF] to-[#A8AFDE]/50 bg-clip-text text-transparent text-2xl font-medium font-helvetica mb-6 ml-2"
             variants={itemVariants}
           >
-            {eventInfo?.slug ?
-              `#${eventInfo.slug.substring(0, 4).toUpperCase()}${eventInfo.currentSupply || 0}` :
-              '#BREAK0042'}
+            {eventInfo?.slug
+              ? `#${eventInfo.slug.substring(0, 4).toUpperCase()}${
+                  eventInfo.currentSupply || 0
+                }`
+              : "#BREAK0042"}
           </motion.div>
 
           <button
@@ -218,27 +247,45 @@ export default function BreakoutPage() {
             {isLoading ? (
               <div className="w-5 h-5 border-2 border-t-[#4c5bcd] border-r-[#4c5bcd]/40 border-b-[#4c5bcd]/20 border-l-[#4c5bcd]/80 rounded-full animate-spin"></div>
             ) : (
-              'Claim Token'
+              "Claim Token"
             )}
           </button>
 
           <motion.div className="w-full mb-4" variants={itemVariants}>
             <div className="mt-8 mb-1 text-xs text-right text-white/60">
-              {eventInfo?.totalSupply - eventInfo?.currentSupply || 0}/{eventInfo?.totalSupply || 1000} claimed
+              {escrowBalance && eventInfo
+                ? eventInfo.totalSupply - escrowBalance
+                : 0}
+              /{eventInfo?.totalSupply || 1000} claimed
             </div>
             <div className="relative w-full h-2 bg-[#D9D9D9]/20 rounded-full overflow-hidden">
               <div
                 className="absolute left-0 top-0 h-full bg-gradient-to-r from-[#7289FF] to-[#445299] rounded-br-full"
                 style={{
-                  width: `${eventInfo && eventInfo.totalSupply > 0 ?
-                    Math.min(100, ((eventInfo?.totalSupply - eventInfo.currentSupply) / eventInfo.totalSupply) * 100) :
-                    0}%`
+                  width: `${
+                    eventInfo && eventInfo.totalSupply > 0
+                      ? Math.min(
+                          100,
+                          ((eventInfo?.totalSupply - eventInfo.currentSupply) /
+                            eventInfo.totalSupply) *
+                            100
+                        )
+                      : 0
+                  }%`,
                 }}
               ></div>
             </div>
           </motion.div>
         </motion.div>
       </motion.div>
+      <Toaster
+        position="bottom-center"
+        duration={3000}
+        closeButton
+        richColors
+        theme="dark"
+        className="!fixed !bottom-6 !left-1/2 !transform !-translate-x-1/2"
+      />
     </div>
   );
 }

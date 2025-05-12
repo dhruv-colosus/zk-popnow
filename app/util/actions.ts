@@ -33,7 +33,6 @@ export async function uploadToCloudinary(
   type: string
 ) {
   try {
-
     const buffer = Buffer.from(arrayBuffer);
     const base64String = buffer.toString("base64");
     const dataURI = `data:${type};base64,${base64String}`;
@@ -63,9 +62,9 @@ type Event = {
 
 export async function createEvent(event: Event) {
   let slug = event.name.toLowerCase().replace(/ /g, "-");
-  
+
   const existingEvent = await prisma.event.findFirst({ where: { slug } });
-  
+
   if (existingEvent) {
     const uuid = Math.random().toString(36).substring(2, 10);
     slug = `${uuid}-${slug}`;
@@ -129,6 +128,7 @@ export async function claimAirdrop(slug: string, userAddress: string) {
 
   tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
   tx.feePayer = userPublicKey;
+  // tx.partialSign(Keypair.fromSecretKey(bs58.decode(process.env.ESCROW_KEY!)));
 
   return tx.serialize({ requireAllSignatures: false });
 }
@@ -151,7 +151,7 @@ export const incrementAirdropSupply = async (slug: string) => {
 export async function getAllEvents() {
   return await prisma.event.findMany({
     orderBy: {
-      createdAt: 'desc'
-    }
+      createdAt: "desc",
+    },
   });
 }

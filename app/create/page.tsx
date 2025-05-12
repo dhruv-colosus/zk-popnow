@@ -11,10 +11,8 @@ import {
   createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddressSync,
   MINT_SIZE,
-  TOKEN_PROGRAM_ID,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  mintTo,
   createMintToInstruction,
+  getTokenMetadata,
 } from "@solana/spl-token";
 import {
   Keypair,
@@ -23,19 +21,23 @@ import {
   Transaction,
   VersionedTransaction,
 } from "@solana/web3.js";
+import { CompressedTokenProgram } from "@lightprotocol/compressed-token";
 import {
-  CompressedTokenProgram,
-  createTokenPool,
-  getTokenPoolInfos,
-  selectTokenPoolInfo,
-} from "@lightprotocol/compressed-token";
-import { createMetadataAccountV3 } from "@metaplex-foundation/mpl-token-metadata";
-import { zipMap } from "@metaplex-foundation/js";
-import { selectStateTreeInfo } from "@lightprotocol/stateless.js";
+  createFungible,
+  createMetadataAccountV3,
+  findMetadataPda,
+} from "@metaplex-foundation/mpl-token-metadata";
 import { useRouter } from "next/navigation";
 import { createEvent, uploadToCloudinary } from "../util/actions";
 import { toast } from "sonner";
 import { Toaster } from "../../components/ui/sonner";
+import {
+  fromWeb3JsKeypair,
+  fromWeb3JsPublicKey,
+  fromWeb3JsTransaction,
+  toWeb3JsInstruction,
+  toWeb3JsTransaction,
+} from "@metaplex-foundation/umi-web3js-adapters";
 
 export default function CreatePage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -75,7 +77,12 @@ export default function CreatePage() {
   const router = useRouter();
 
   const handleMintTokens = async () => {
-    if (!wallet.publicKey || !wallet.signTransaction) {
+    if (
+      !wallet.publicKey ||
+      !wallet.signTransaction ||
+      !wallet.signMessage ||
+      !wallet.signAllTransactions
+    ) {
       toast.error("Please connect your wallet");
       return;
     }
@@ -113,6 +120,9 @@ export default function CreatePage() {
       const transaction = new Transaction();
 
       const tokenMint = Keypair.generate();
+      const escrowPubkey = new PublicKey(
+        process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string
+      );
 
       const createMintInstruction = await CompressedTokenProgram.createMint({
         feePayer: wallet.publicKey,
@@ -129,44 +139,55 @@ export default function CreatePage() {
         data: {
           name: eventName,
           symbol: eventName.slice(0, 4).toUpperCase(), // TODO chage this
-          uri: url,
+          uri: `https://popnow.dotprolabs.com/api/tokens/${tokenMint.publicKey.toBase58()}`,
           sellerFeeBasisPoints: 0,
           creators: null,
           collection: null,
           uses: null,
         },
-        mint: tokenMint.publicKey as any,
-        mintAuthority: wallet.publicKey as any,
+        metadata: findMetadataPda(umi, {
+          mint: fromWeb3JsPublicKey(tokenMint.publicKey),
+        }),
+        mint: fromWeb3JsPublicKey(tokenMint.publicKey),
+        mintAuthority: {
+          publicKey: fromWeb3JsPublicKey(wallet.publicKey),
+          signMessage: wallet.signMessage,
+          signTransaction: async (tx) =>
+            fromWeb3JsTransaction(
+              (wallet as any).signTransaction(toWeb3JsTransaction(tx))
+            ),
+          signAllTransactions: async (txs) =>
+            (
+              await wallet.signAllTransactions!(txs.map(toWeb3JsTransaction))
+            ).map((tx) => fromWeb3JsTransaction(tx)),
+        },
         isMutable: false,
         collectionDetails: null,
       }).getInstructions();
 
       const ataAddress = getAssociatedTokenAddressSync(
         tokenMint.publicKey,
-        new PublicKey(process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string)
+        escrowPubkey
       );
       console.log("ata", ataAddress, ataAddress.toBase58());
+      console.log(
+        "meta address",
+        findMetadataPda(umi, {
+          mint: fromWeb3JsPublicKey(tokenMint.publicKey),
+        }).toString()
+      );
 
       const createAtaInstruction = createAssociatedTokenAccountInstruction(
         wallet.publicKey,
         ataAddress,
-        new PublicKey(process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string),
+        escrowPubkey,
         tokenMint.publicKey
       );
 
-      // fuck this library
-      createMetadataInstructions.forEach((inst) => {
-        inst.keys = inst.keys.map((key: any) => {
-          return {
-            pubkey: new PublicKey(key.pubkey.toString()),
-            isSigner: key.isSigner,
-            isWritable: key.isWritable,
-          };
-        }) as any;
-      });
-
       transaction.add(...createMintInstruction);
-      transaction.add(...(createMetadataInstructions as any));
+      transaction.add(
+        ...createMetadataInstructions.map((inst) => toWeb3JsInstruction(inst))
+      );
       transaction.add(createAtaInstruction);
 
       transaction.feePayer = wallet.publicKey;
@@ -205,7 +226,7 @@ export default function CreatePage() {
       const mintToInstruction = createMintToInstruction(
         tokenMint.publicKey,
         ataAddress,
-        new PublicKey(process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string),
+        wallet.publicKey,
         Number(totalSupply)
       );
 
@@ -219,7 +240,6 @@ export default function CreatePage() {
       const signedMintTx = await wallet.signTransaction(
         new VersionedTransaction(mintTx.compileMessage())
       );
-      signedMintTx.sign([tokenMint]);
 
       console.log(signedMintTx.message.serialize().toString("base64"));
 
