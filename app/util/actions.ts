@@ -13,6 +13,7 @@ import {
 import {
   createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddressSync,
+  TOKEN_2022_PROGRAM_ID,
 } from "@solana/spl-token";
 import {
   CompressedTokenProgram,
@@ -103,7 +104,9 @@ export async function claimAirdrop(slug: string, userAddress: string) {
 
   const sourceTokenAccount = getAssociatedTokenAddressSync(
     new PublicKey(event.mintAddress),
-    new PublicKey(process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string)
+    new PublicKey(process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string),
+    false,
+    TOKEN_2022_PROGRAM_ID
   );
 
   const activeStateTrees = await connection.getStateTreeInfos();

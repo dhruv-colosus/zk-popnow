@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, m } from "framer-motion";
 import { Upload, XCircle, Loader2 } from "lucide-react";
 import { connection } from "../util/conn";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -12,13 +12,19 @@ import {
   getAssociatedTokenAddressSync,
   MINT_SIZE,
   createMintToInstruction,
-  getTokenMetadata,
+  createInitializeMetadataPointerInstruction,
+  TOKEN_2022_PROGRAM_ID,
+  ExtensionType,
+  getMintLen,
+  LENGTH_SIZE,
+  TYPE_SIZE,
 } from "@solana/spl-token";
 import {
   Keypair,
   PublicKey,
   SendTransactionError,
   Transaction,
+  TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
 import { CompressedTokenProgram } from "@lightprotocol/compressed-token";
@@ -36,8 +42,15 @@ import {
   fromWeb3JsPublicKey,
   fromWeb3JsTransaction,
   toWeb3JsInstruction,
+  toWeb3JsPublicKey,
   toWeb3JsTransaction,
 } from "@metaplex-foundation/umi-web3js-adapters";
+import {
+  createInitializeInstruction as createSplTokenMetadataInitializeInstruction,
+  pack as packTokenMetadata,
+  TokenMetadata,
+} from "@solana/spl-token-metadata";
+import { metadata } from "../layout";
 
 export default function CreatePage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -124,79 +137,77 @@ export default function CreatePage() {
         process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string
       );
 
-      const createMintInstruction = await CompressedTokenProgram.createMint({
-        feePayer: wallet.publicKey,
-        authority: wallet.publicKey,
+      const metadata: TokenMetadata = {
         mint: tokenMint.publicKey,
-        decimals: 0,
-        freezeAuthority: null,
-        rentExemptBalance: await connection.getMinimumBalanceForRentExemption(
-          MINT_SIZE
-        ),
-      });
+        name: eventName,
+        symbol: eventName,
+        uri: `${window.location.origin}/api/tokens/${publicId}`,
+        additionalMetadata: [],
+      };
+      const mintLen = getMintLen([ExtensionType.MetadataPointer]);
+      const metadataLen =
+        TYPE_SIZE + LENGTH_SIZE + packTokenMetadata(metadata).length;
 
-      let createMetadataInstructions = createMetadataAccountV3(umi, {
-        data: {
-          name: eventName,
-          symbol: eventName.slice(0, 4).toUpperCase(), // TODO chage this
-          uri: `https://popnow.dotprolabs.com/api/tokens/${tokenMint.publicKey.toBase58()}`,
-          sellerFeeBasisPoints: 0,
-          creators: null,
-          collection: null,
-          uses: null,
-        },
-        metadata: findMetadataPda(umi, {
-          mint: fromWeb3JsPublicKey(tokenMint.publicKey),
-        }),
-        mint: fromWeb3JsPublicKey(tokenMint.publicKey),
-        mintAuthority: {
-          publicKey: fromWeb3JsPublicKey(wallet.publicKey),
-          signMessage: wallet.signMessage,
-          signTransaction: async (tx) =>
-            fromWeb3JsTransaction(
-              (wallet as any).signTransaction(toWeb3JsTransaction(tx))
-            ),
-          signAllTransactions: async (txs) =>
-            (
-              await wallet.signAllTransactions!(txs.map(toWeb3JsTransaction))
-            ).map((tx) => fromWeb3JsTransaction(tx)),
-        },
-        isMutable: false,
-        collectionDetails: null,
-      }).getInstructions();
+      const [createMintAccountIx, initializeMintIx, createTokenPoolIx] =
+        await CompressedTokenProgram.createMint({
+          feePayer: wallet.publicKey,
+          authority: wallet.publicKey,
+          mint: tokenMint.publicKey,
+          decimals: 0,
+          freezeAuthority: null,
+          rentExemptBalance: await connection.getMinimumBalanceForRentExemption(
+            mintLen + metadataLen
+          ),
+          mintSize: mintLen,
+          tokenProgramId: TOKEN_2022_PROGRAM_ID,
+        });
 
       const ataAddress = getAssociatedTokenAddressSync(
         tokenMint.publicKey,
-        escrowPubkey
+        escrowPubkey,
+        false,
+        TOKEN_2022_PROGRAM_ID
       );
       console.log("ata", ataAddress, ataAddress.toBase58());
-      console.log(
-        "meta address",
-        findMetadataPda(umi, {
-          mint: fromWeb3JsPublicKey(tokenMint.publicKey),
-        }).toString()
-      );
-
-      const createAtaInstruction = createAssociatedTokenAccountInstruction(
+      const createAtaIx = createAssociatedTokenAccountInstruction(
         wallet.publicKey,
         ataAddress,
         escrowPubkey,
-        tokenMint.publicKey
+        tokenMint.publicKey,
+        TOKEN_2022_PROGRAM_ID
       );
 
-      transaction.add(...createMintInstruction);
-      transaction.add(
-        ...createMetadataInstructions.map((inst) => toWeb3JsInstruction(inst))
-      );
-      transaction.add(createAtaInstruction);
+      const instructions = [
+        createMintAccountIx,
+        createInitializeMetadataPointerInstruction(
+          tokenMint.publicKey,
+          wallet.publicKey,
+          tokenMint.publicKey,
+          TOKEN_2022_PROGRAM_ID
+        ),
+        initializeMintIx,
+        createSplTokenMetadataInitializeInstruction({
+          programId: TOKEN_2022_PROGRAM_ID, // Token program hosting metadata
+          mint: tokenMint.publicKey,
+          metadata: tokenMint.publicKey,
+          name: metadata.name,
+          symbol: metadata.symbol,
+          uri: metadata.uri,
+          mintAuthority: wallet.publicKey,
+          updateAuthority: wallet.publicKey,
+        }),
+        createTokenPoolIx,
+        createAtaIx,
+      ];
 
-      transaction.feePayer = wallet.publicKey;
-      transaction.recentBlockhash = (
-        await connection.getLatestBlockhash()
-      ).blockhash;
+      const messageV0 = new TransactionMessage({
+        payerKey: wallet.publicKey,
+        recentBlockhash: (await connection.getLatestBlockhash()).blockhash,
+        instructions,
+      }).compileToV0Message();
 
       const signedTransaction = await wallet.signTransaction(
-        new VersionedTransaction(transaction.compileMessage())
+        new VersionedTransaction(messageV0)
       );
       signedTransaction.sign([tokenMint]);
 
@@ -227,7 +238,9 @@ export default function CreatePage() {
         tokenMint.publicKey,
         ataAddress,
         wallet.publicKey,
-        Number(totalSupply)
+        Number(totalSupply),
+        [],
+        TOKEN_2022_PROGRAM_ID
       );
 
       const mintTx = new Transaction();

@@ -21,7 +21,10 @@ import { connection } from "@/app/util/conn";
 import bs58 from "bs58";
 import Link from "next/link";
 import { toast, Toaster } from "sonner";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import {
+  getAssociatedTokenAddressSync,
+  TOKEN_2022_PROGRAM_ID,
+} from "@solana/spl-token";
 
 export default function BreakoutPage() {
   const containerVariants = {
@@ -59,7 +62,9 @@ export default function BreakoutPage() {
     const fetchEscrowBalance = async () => {
       const ataAddress = getAssociatedTokenAddressSync(
         new PublicKey(eventInfo?.mintAddress as string),
-        new PublicKey(process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string)
+        new PublicKey(process.env.NEXT_PUBLIC_ESCROW_ADDRESS as string),
+        false,
+        TOKEN_2022_PROGRAM_ID
       );
       const balance = await connection.getTokenAccountBalance(ataAddress);
       console.log("escrow balance", balance);
